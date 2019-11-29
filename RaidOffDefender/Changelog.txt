@@ -1,0 +1,2 @@
+V1.0.2 - 29.11.2019
+Importing code into Github and adding contact informations
