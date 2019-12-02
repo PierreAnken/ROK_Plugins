@@ -1,0 +1,5 @@
+Commands
+
+	/zm : display help from zone manager
+	/zm add <ZoneName> : add a new zone
+	/zm list : display a list of all zones
