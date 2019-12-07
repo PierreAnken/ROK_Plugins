@@ -31,11 +31,11 @@ using CodeHatch.Engine.Modules.SocialSystem.Objects;
 using static CodeHatch.Blocks.Networking.Events.CubeEvent;
 
 namespace Oxide.Plugins{
-    [Info("ZoneManager", "PierreA", "1.0.0")]
+    [Info("ZoneManager", "Pierre Anken", "1.0.0")]
     public class ZoneManager : ReignOfKingsPlugin {
 
         /*=============================================
-         * Last update: 29.11.2019
+         * Last update: 07.12.2019
          * Contact: pierre.anken@gmail.com
          * https://github.com/PierreAnken/ROK_Plugins
          ==============================================*/
