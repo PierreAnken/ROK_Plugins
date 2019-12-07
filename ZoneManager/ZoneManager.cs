@@ -42,22 +42,22 @@ namespace Oxide.Plugins{
 
         #region Configuration Data
         private Collection<Zone> _Zones = new Collection<Zone>();
-        private List<string> validCommands = new List<string>(new string[]{"add", "list", "setA", "setB","build","cubeDmg"});
+        private List<string> validCommands = new List<string>(new string[]{"add", "list", "setA", "setB","build","cubeDmg","dps", "delete" });
         #endregion
 
         #region classes
         private class Zone
         {
-            public bool active;
-			public string name;
+            public bool active; //TODO
+            public string name;
 			public int damagePerSeconde;
-            public bool objectDamage = true;
+            public bool objectDamage = true; //TODO
             public bool cubeDamage = true;
-            public bool playerDamage = true;
-            public bool canBuild = false;
+            public bool playerDamage = true; //TODO
+            public bool canBuild = true;
             public Coordinate pointA;
             public Coordinate pointB; 
-            public bool round = false; //square: A+B are opposite corners - round: A : center + B radius ends
+            public bool round = false; //TODO square: A+B are opposite corners - round: A : center + B radius ends
             public Collection<ulong> playersInZone = new Collection<ulong>();
         }
 
@@ -86,39 +86,79 @@ namespace Oxide.Plugins{
 		}
 		
         override
-		protected void LoadDefaultMessages()
+        protected void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-				{ "EnteringZone", "Entrée {0}" },
+                { "EnteringZone", "[46A0BC] {0} [FFFFFF] - entrée" },
+                { "LeavingZone", "[46A0BC] {0} [FFFFFF] - sortie" },
                 { "ZoneAdded", "Zone ajoutée" },
                 { "InvalidCommand", "Commande invalide. Utiliser /zm pour l'aide" },
                 { "ZoneHelp", "Zone manager - commandes:#" +
                               "/zm add <NomZone> pour créer une nouvelle zone#" +
+                              "/zm delete : supprime la zone actuelle#" +
+                              "/zm setA x : définit le point A pour la zone x#" +
+                              "/zm setB x : définit le point A pour la zone x#" +
+                              "/zm build : Inverse l'option de build pour la zone actuelle#" +
+                              "/zm cubeDmg : Inverse l'option de dégats aux cube pour la zone actuelle#" +
+                              "/zm dps : Définit les dégats/soins infligés par la zone (-10/+5)#" +
                               "/zm list pour voir toutes les zones" },
                 { "InvalidZoneName", "Nom de zone invalide '{0}', min. 3 caractères, max. 20" },
-                { "LeavingZone", "Sortie {0}" },
-                { "ZoneListHeader", "ID - Nom - Active - Dgts - DgtsObj - DgtsJoueurs  -Constr." }
-            }, this,"fr");
-			
-			lang.RegisterMessages(new Dictionary<string, string>
+                { "ZoneDeleted", "Zone supprimée." },
+                { "NotInZone", "Vous n'êtes pas dans une zone." },
+                { "WrongDPS", "Le dps de la zone doit être compris entre -10 et 5." },
+                { "ZoneHealing", "La zone soigne dorénavant de {0} pdv/sec" },
+                { "ZoneDamaging", "La zone inflige dorénavant {0} pdv/sec" },
+                { "DPSDeactivated", "DPS désactivé dans la zone." },
+                { "CubeDamageStatus", "Dégats aux cube activés? {0}" },
+                { "NoCubeDamageHere", "Pas de dégats aux cubes dans cette zone." },
+                { "BuildStatus", "Construction activée? {0}" },
+                { "NoBuildHere", "Construction bloquée dans cette zone." },
+                { "PointASet", "Point A définit pour la zone." },
+                { "PointBSet", "Point B définit pour la zone." },
+                { "InvalidZoneId", "La zone {0} n'existe pas." },
+                { "AlreadyAZone", "Ce point est déjà dans une autre zone." },
+                { "ZoneListHeader", "ID - Nom - Active - Dgts - DgtsObj - DgtsJoueurs - Constr." }
+            }, this, "fr");
+
+            lang.RegisterMessages(new Dictionary<string, string>
             {
-                { "EnteringZone", "Entering {0}" },
+                { "EnteringZone", "[46A0BC] {0} [FFFFFF] - entering" },
+                { "LeavingZone", "[46A0BC] {0} [FFFFFF] - leaving" },
                 { "ZoneAdded", "Zone added" },
                 { "InvalidCommand", "Invalide command. Use /zm for help" },
                 { "ZoneHelp", "Zone manager - commands:#" +
                               "/zm add <ZoneName> : create new zone#" +
+                              "/zm delete : Delete current zone#" +
+                              "/zm setA x : set point A from the zone x#" +
+                              "/zm setB x : set point A from the zone x#" +
+                              "/zm build : Toggle build from players in current zone#" +
+                              "/zm cubeDmg : Toggle cube damage in current zone#" +
+                              "/zm dps : Set healing/damage done by current zone (-10/+5)#" +
                               "/zm list : to see all zones" },
                 { "InvalidZoneName", "Zone name is invalide '{0}', min. 3 chars, max 20" },
-                { "LeavingZone", "Leaving {0}" },
+                { "ZoneDeleted", "Zone was deleted." },
+                { "NotInZone", "You are not in a zone." },
+                { "WrongDPS", "Zone dps must be between -10 and 5." },
+                { "ZoneHealing", "Zone is now healing from {0} hp/sec" },
+                { "ZoneDamaging", "Zone is now removing {0} hp/sec" },
+                { "DPSDeactivated", "DPS deactivated in the zone." },
+                { "CubeDamageStatus", "Cube damage activated? {0}" },
+                { "NoCubeDamageHere", "No cube damage allowed in this zone." },
+                { "BuildStatus", "Construction activated? {0}" },
+                { "NoBuildHere", "No build allowed in this zone." },
+                { "PointASet", "Point A set for the zone." },
+                { "PointBSet", "Point B set for the zone." },
+                { "InvalidZoneId", "The zone {0} doesn't exists." },
+                { "AlreadyAZone", "This point is already in another zone." },
                 { "ZoneListHeader", "ID - Name - Active - Dmg - ObjDmg - PlayerDmg - Build" }
-            }, this,"en");
-        }	
-		#endregion
-		
-		#region Commands
+            }, this, "en");
+        }
+        #endregion
 
-		[ChatCommand("zm")]
+        #region Commands
+
+        [ChatCommand("zm")]
 		private void commands(Player player,string cmd, string[] args){
 			if(args.Length == 0){
                 displayZoneHelp(player);
@@ -146,6 +186,14 @@ namespace Oxide.Plugins{
                         if (checkParams(args, player))
                             toggleCubeDmg(player);
                         break;
+                    case "delete":
+                        if (checkParams(args, player))
+                            deleteZone(player);
+                        break;
+                    case "dps":
+                        if (checkParams(args, player, 2))
+                            setDps(player, args[1]);
+                        break;
                     default:
                         sendError(player, GetMessage("InvalidCommand"));
                         break;
@@ -157,59 +205,133 @@ namespace Oxide.Plugins{
             }
 		}
 
-        
+        private void deleteZone(Player player)
+        {
+            if (player.HasPermission("admin"))
+            {
+                Zone zone = getPlayerZone(player);
+                if (zone != null)
+                {
+                    _Zones.Remove(zone);
+                    PrintToChat(player, GetMessage("ZoneDeleted"));
+                    SaveData();
+
+                }
+                else
+                {
+                    sendError(player, GetMessage("NotInZone"));
+                }
+            }
+        }
+
+        private void setDps(Player player, string dmg)
+        {
+            if (player.HasPermission("admin"))
+            {
+                Zone zone = getPlayerZone(player);
+                if (zone != null)
+                {
+
+                    int dps = -100;
+                    int.TryParse(dmg, out dps);
+                    if (dps < -10 || dps > 5)
+                    {
+                        PrintToChat(player, GetMessage("WrongDPS"));
+                    }
+                    else
+                    {
+                        zone.damagePerSeconde = dps;
+                        if (dps < 0)
+                        {
+
+                            PrintToChat(player, string.Format(GetMessage("ZoneHealing"), dps));
+                        }
+                        else if (dps == 0)
+                        {
+                            PrintToChat(player, GetMessage("DPSDeactivated"));
+                        }
+                        else
+                        {
+                            PrintToChat(player, string.Format(GetMessage("ZoneDamaging"), dps));
+                        }
+                        SaveData();
+                    }
+                }
+                else
+                {
+                    sendError(player, GetMessage("NotInZone"));
+                }
+            }
+        }
+
         private void toggleBuild(Player player)
         {
-            Zone zone = getPlayerZone(player);
-            if (zone != null){
-
-                bool canBuild = zone.canBuild;
-                zone.canBuild = !canBuild;
-                //TODO: Translate
-                PrintToChat(player, "Construction activée ? " + !canBuild);
-                SaveData();
-            }
-            else {
-                sendError(player, "Vous n'êtes pas dans une zone.");
+            if (player.HasPermission("admin"))
+            {
+                Zone zone = getPlayerZone(player);
+                if (zone != null)
+                {
+                    bool canBuild = zone.canBuild;
+                    zone.canBuild = !canBuild;
+                    PrintToChat(player, string.Format(GetMessage("BuildStatus"), canBuild));
+                    SaveData();
+                }
+                else
+                {
+                    sendError(player, GetMessage("NotInZone"));
+                }
             }
         }
 
         private void toggleCubeDmg(Player player)
         {
-            Zone zone = getPlayerZone(player);
-            if (zone != null)
+            if (player.HasPermission("admin"))
             {
-                bool cubeDamage = zone.cubeDamage;
-                zone.cubeDamage = !cubeDamage;
-                //TODO: Translate
-                PrintToChat(player, "Dégats aux cubes activés ? " + !cubeDamage);
-                SaveData();
-            }
-            else
-            {
-                sendError(player, "Vous n'êtes pas dans une zone.");
+                Zone zone = getPlayerZone(player);
+                if (zone != null)
+                {
+                    bool cubeDamage = zone.cubeDamage;
+                    zone.cubeDamage = !cubeDamage;
+                    PrintToChat(player, string.Format(GetMessage("CubeDamageStatus"), !cubeDamage));
+                    SaveData();
+                }
+                else
+                {
+                    sendError(player, GetMessage("NotInZone"));
+                }
             }
         }
 
         private void setPointForZone(string[] parameters, Player player) {
-            
-            int zoneId = getZoneId(parameters[1], player);
-            if(zoneId > -1)
+
+            if (player.HasPermission("admin"))
             {
-                //TODO: Check if point in another zone
-                Coordinate point = coordinateFromPosition(getPosition(player));
-                if(parameters[0] == "setA")
+                int zoneId = getZoneId(parameters[1], player);
+                if (zoneId > -1)
                 {
-                    _Zones[zoneId].pointA = point;
-                    //TODO Translation
-                    PrintToChat(player, "Point A set for zone "+zoneId);
+
+                    Zone currentZone = getPlayerZone(player);
+                    if(currentZone != null)
+                    {
+                        if (currentZone.name != _Zones[zoneId].name) {
+                            PrintToChat(player, GetMessage("AlreadyAZone"));
+                            return;
+                        }
+                    }
+                    
+                    Coordinate point = coordinateFromPosition(getPosition(player));
+                    if (parameters[0] == "setA")
+                    {
+                        _Zones[zoneId].pointA = point;
+                        PrintToChat(player, GetMessage("PointASet"));
+                    }
+                    else
+                    {
+                        _Zones[zoneId].pointB = point;
+                        PrintToChat(player, GetMessage("PointBSet"));
+                    }
+                    SaveData();
                 }
-                else {
-                    _Zones[zoneId].pointB = point;
-                    //TODO Translation
-                    PrintToChat(player, "Point B set for zone " + zoneId);
-                }
-                SaveData();
             }
         }
 
@@ -265,13 +387,19 @@ namespace Oxide.Plugins{
 
         private void displayZoneList(Player player)
         {
-            PrintToChat(player, GetMessage("ZoneListHeader"));
-            int i = 0;
-            foreach (Zone zone in _Zones)
+            if (player.HasPermission("admin"))
             {
-                String message = string.Format("{0} - {1} - {2} - {3} - {4} - {5} - {6}", i, zone.name, zone.active, zone.damagePerSeconde, zone.objectDamage, zone.playerDamage, zone.canBuild);
-                PrintToChat(player, message);
-                i++;
+                PrintToChat(player, GetMessage("ZoneListHeader"));
+                int i = 0;
+                foreach (Zone zone in _Zones)
+                {
+                    //TODO
+                    //object[] data = new object[] { i, zone.name, zone.active, zone.damagePerSeconde, zone.objectDamage, zone.playerDamage, zone.canBuild };
+                    object[] data = new object[] { i, zone.name, true, zone.damagePerSeconde, true, true, zone.canBuild };
+                    string message = string.Format("{0} - {1} - {2} - {3} - {4} - {5} - {6}", data);
+                    PrintToChat(player, message);
+                    i++;
+                }
             }
         }
 
@@ -298,8 +426,7 @@ namespace Oxide.Plugins{
                 {
                     if (!currentZone.canBuild)
                     {
-                        //TODO: To translate
-                        sendError(player, "Pas de construction dans cette zone.");
+                        sendError(player, GetMessage("NoBuildHere"));
                         placeEvent.Cancel();
                     }
                 }
@@ -325,8 +452,7 @@ namespace Oxide.Plugins{
                 {
                     if (!currentZone.cubeDamage)
                     {
-                        //TODO: To translate
-                        sendError(player, "Pas de dégats aux cubes dans la zone.");
+                        sendError(player, GetMessage("NoCubeDamageHere"));
                         
                         var centralPrefabAtLocal = BlockManager.DefaultCubeGrid.GetCentralPrefabAtLocal(damageEvent.Position);
                         if (centralPrefabAtLocal != null)
@@ -345,8 +471,7 @@ namespace Oxide.Plugins{
 
 
         #endregion
-
-
+    
         #region Functions
 
         private void sendError(Player player, string message) {
@@ -368,7 +493,7 @@ namespace Oxide.Plugins{
                 bool valid = zoneId + 1 <= _Zones.Count && zoneId >= 0;
                 if (!valid)
                 {
-                    sendError(player, "Zone " + zoneId + " dosen't exists");
+                    sendError(player, string.Format(GetMessage("InvalidZoneId"), zoneId));
                 }
             }
             return zoneId;
@@ -397,24 +522,37 @@ namespace Oxide.Plugins{
 
                     if (playerInZone)
                     {
-                       
-                        if (!playerInZoneList)
+
+                        //damage / heal
+                        float dps = (float)zone.damagePerSeconde;
+                        if(dps != 0)
                         {
-                            //todo translate
-                            PrintToChat(player, string.Format("[46A0BC] {0} [FFFFFF] - entrée", zone.name));
-                            zone.playersInZone.Add(player.Id);
+                           
+                            if (dps < 0)
+                            {
+                                player.GetHealth().Heal(-dps);
+                            }
+                            else if(!player.HasPermission("admin")){
+                                Damage damage = new Damage()
+                                {
+                                    Amount = dps,
+                                };
+                                EventManager.CallEvent((BaseEvent)new EntityDamageEvent(player.Entity, damage));
+                            }
                         }
 
-                        break;
+                        if (!playerInZoneList)
+                        {
+                            PrintToChat(player, string.Format(GetMessage("EnteringZone"), zone.name));
+                            zone.playersInZone.Add(player.Id);
+                        }
                     }
                     else if(playerInZoneList)
                     {
-                        //todo translate
-                        PrintToChat(player, string.Format("[46A0BC] {0} [FFFFFF] - sortie", zone.name));
+                        PrintToChat(player, string.Format(GetMessage("LeavingZone"), zone.name));
                         zone.playersInZone.Remove(player.Id);
                     }
                 }
-				
 			}
 		}
 
@@ -545,7 +683,7 @@ namespace Oxide.Plugins{
                 }
             }
             catch(Exception e){
-                Puts("Error isPositionInZone: " + e.Message);
+               
             }
             return false;
         }

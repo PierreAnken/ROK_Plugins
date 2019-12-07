@@ -1,5 +1,13 @@
-Commands
+Zone Manager is a RP plugin to define named Zones on your map.
+You can set various parameters on the zones which will impact their gameplay.
 
+Commands
 	/zm : display help from zone manager
 	/zm add <ZoneName> : add a new zone
 	/zm list : display a list of all zones
+	/zm setA x : set point A from the zone x
+	/zm setB x : set point B from the zone x
+	/zm build : Toggle build from players in current zone
+	/zm cubeDmg : Toggle cube damage in current zone
+	/zm dps : Set healing/damage done by current zone (-10/+5)
+	/zm delete : Delete current zone
