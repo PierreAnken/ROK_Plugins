@@ -1,0 +1,8 @@
+[SERVER v1.0.24] Started as service
+[SERVER v1.0.24] Running as service
+[SERVER v1.0.24] Got Message: Ready
+[SERVER v1.0.24] Got Message: Compile
+[SERVER v1.0.24] Console: AdminTools.cs(215,81): error CS1502: The best overloaded method match for `CodeHatch.Blocks.RootCubeGrid.GetCubeInfoAtLocal(CodeHatch.Common.Vector3Int)' has some invalid arguments
+D:\home\sid_1453060\reignOfKings\Assembly-CSharp.dll (Location of the symbol related to previous error)
+AdminTools.cs(215,100): error CS1503: Argument `#1' cannot convert `UnityEngine.Vector3' expression to type `CodeHatch.Common.Vector3Int'
+

@@ -11,3 +11,4 @@ Commands
 	/zm cubeDmg : Toggle cube damage in current zone
 	/zm dps : Set healing/damage done by current zone (-10/+5)
 	/zm delete : Delete current zone
+	

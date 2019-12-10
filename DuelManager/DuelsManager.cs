@@ -173,7 +173,12 @@ namespace Oxide.Plugins{
 		
 		#region Hooks
 		private void OnEntityHealthChange(EntityDamageEvent e){
-			
+
+            if (e.Entity == null) return;
+            if (e.Entity.Owner == null) return;
+            if (e.Damage.DamageSource == null) return;
+            if (e.Damage.DamageSource.Owner == null) return;
+
 			Entity victimeDegats = e.Entity;
             Player joueurVictime = e.Entity.Owner;
             if (victimeDegats != null && joueurVictime != null)
