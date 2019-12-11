@@ -42,7 +42,7 @@ using static CodeHatch.Blocks.Networking.Events.CubeEvent;
 
 namespace Oxide.Plugins
 {
-    [Info("RPZoneManager", "PierreA", "1.0.1")]
+    [Info("RPZoneManager", "Pierre Anken", "1.0.1")]
     public class RPZoneManager : ReignOfKingsPlugin
     {
 
@@ -547,26 +547,37 @@ namespace Oxide.Plugins
 
         private void OnEntityHealthChange(EntityDamageEvent e)
         {
-            if (e.Damage == null) return;
-            if (e.Damage.Amount <= 0) return;
-            if (e.Damage.DamageSource == null) return;
-            if (e.Damage.DamageSource.Owner == null) return;
-            if (!e.Damage.DamageSource.Owner.Entity.IsPlayer == null) return;
-            if (e.Entity == null) return;
-            if (e.Entity.Owner == null) return;
-            if (!e.Entity.Owner.Entity.IsPlayer) return;
+            try
+            {
+                if (e == null) return;
+                if (e.Damage == null) return;
+                if (e.Damage.Amount <= 0) return;
+                if (e.Damage.DamageSource == null) return;
+                if (e.Damage.DamageSource.Owner == null) return;
+                if (e.Damage.DamageSource.Owner.Entity == null) return;
+                if (!e.Damage.DamageSource.Owner.Entity.IsPlayer) return;
+                if (e.Entity == null) return;
+                if (e.Entity.Owner == null) return;
+                if (e.Entity.Owner.Entity == null) return;
+                if (!e.Entity.Owner.Entity.IsPlayer) return;
 
-            Player attacker = e.Damage.DamageSource.Owner;
-            Player victim = e.Entity.Owner;
-            Zone victimZone = getPlayerZone(victim);
+                Player attacker = e.Damage.DamageSource.Owner;
+                Player victim = e.Entity.Owner;
+                if (attacker == victim) return;
 
-            if (victimZone != null) {
-                if (!victimZone.playerDamage)
+                Zone victimZone = getPlayerZone(victim);
+
+                if (victimZone != null)
                 {
-                    sendError(attacker, string.Format(GetMessage("NoPvPInZone")));
-                    e.Damage.Amount = 0f;
-                    return;
+                    if (!victimZone.playerDamage)
+                    {
+                        sendError(attacker, string.Format(GetMessage("NoPvPInZone")));
+                        e.Damage.Amount = 0f;
+                        return;
+                    }
                 }
+            }
+            catch {
             }
         }
 

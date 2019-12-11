@@ -10,6 +10,12 @@ using Oxide.Core;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
+using CodeHatch.Networking.Events;
+using CodeHatch.Networking.Events.Entities;
+using CodeHatch.Networking.Events.Entities.Players;
+using CodeHatch.Networking.Events.Gaming;
+using CodeHatch.Networking.Events.Players;
+
 namespace Oxide.Plugins{
     [Info("RaidOffDefender", "PierreA", "1.0.2")]
     public class RaidOffDefender : ReignOfKingsPlugin{
@@ -304,9 +310,13 @@ namespace Oxide.Plugins{
 		#endregion
 		
 		#region Hooks
-		private void OnCubeTakeDamage(CubeDamageEvent e){	
-			if(e.Damage.Amount > 0 && e.Damage.DamageSource.IsPlayer){
-				Player attacker = e.Damage.DamageSource.Owner;
+		private void OnCubeTakeDamage(CubeDamageEvent e){
+
+
+            Player attacker = e.Damage.DamageSource.Owner;
+            if (attacker.HasPermission("admin")) return;
+
+            if (e.Damage.Amount > 0 && e.Damage.DamageSource.IsPlayer){
 				string weapon = e.Damage.Damager.name;
 				Vector3 positionCube = convertPosCubeInCoordinates(e.Position);
 				var victimeOwnerId = crestScheme.GetCrestPlayer(positionCube);
@@ -333,43 +343,25 @@ namespace Oxide.Plugins{
 						if(!sameGuild){
 							//victim offline
 							if(!victimGuildOnline){
-								//offline protection active
-								if(raidOfflineProtection && isInATimeRange()){
-									e.Damage.Amount = 0f;
-									
-									if(getTimestamp()-lastWarning>5){
-										if(!killOrKick){
-											if(victimInfos != null){
-												PrintToChat(GetMessage("RaidOffVictimKill"), attacker.DisplayName, weapon, victimInfos.playerName);
-											}
-											else{
-												PrintToChat(GetMessage("RaidOffUnknownVictimKill"), attacker.DisplayName, weapon);
-											}
-										}
-										else{
-											if(victimInfos != null){
-												PrintToChat(GetMessage("RaidOffVictimKick"), attacker.DisplayName, weapon, victimInfos.playerName);
-											}
-											else{
-												PrintToChat(GetMessage("RaidOffUnknownVictimKick"), attacker.DisplayName, weapon);
-											}
-										}
-										lastWarning = getTimestamp();
-									}
-									if(!killOrKick){
-										attacker.GetHealth().Kill();
-									}
-									else{
-										Server.Kick(attacker,"RaidOff");
-									}
-								}
-								else{
-									//offline protection inactive
-									if(getTimestamp()-lastWarning>5){
-										PrintToChat(GetMessage("AttackingBase"), attacker.DisplayName);
-										lastWarning = getTimestamp();
-									}
-								}
+                                //offline protection active
+                                if (raidOfflineProtection && isInATimeRange())
+                                {
+                                    if (getTimestamp() - lastWarning > 5)
+                                    {
+                                        PrintToChat(GetMessage("AttackingBase"), attacker.DisplayName);
+                                        lastWarning = getTimestamp();
+                                    }
+
+                                    float dmgAmount = e.Damage.Amount;
+                                    e.Damage.Amount = 0f;
+
+                                    Damage damage = new Damage()
+                                    {
+                                        Amount = dmgAmount,
+                                    };
+
+                                    EventManager.CallEvent((BaseEvent)new EntityDamageEvent(attacker.Entity, damage));
+                                }
 							}
 							else{
 								if(raidOnlineProtection && isInATimeRange()){

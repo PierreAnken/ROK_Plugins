@@ -37,6 +37,7 @@ namespace Oxide.Plugins{
 		#region Configuration Data
         private static List<Param> _Params = new List<Param>();
         private List<string> validCommands = new List<string>(new string[] { "setLang", "delBlocks"});
+        private static List<Log> _ChatLog = new List<Log>();
         #endregion
 
         #region classes
@@ -78,6 +79,24 @@ namespace Oxide.Plugins{
             }
 
         }
+
+        public class Log {
+
+            public string dateShort;
+            public string message;
+            public string playerName;
+            public ulong playerId;
+
+            public Log(string dateShort, string message, string playerName, ulong playerId)
+            {
+                this.dateShort = dateShort;
+                this.message = message;
+                this.playerName = playerName;
+                this.playerId = playerId;
+            }
+        }
+
+        
         #endregion
 
         #region Config save/load	
@@ -87,15 +106,17 @@ namespace Oxide.Plugins{
             InitParams();
             LoadDefaultMessages();
         }
-
+        
         private static void LoadData()
         {
             _Params = Interface.GetMod().DataFileSystem.ReadObject<List<Param>>("AdminToolsParams");
+            _ChatLog = Interface.GetMod().DataFileSystem.ReadObject<List<Log>>("AdminTools/ChatLog");
         }
 
         private static void SaveData()
         {
             Interface.GetMod().DataFileSystem.WriteObject("AdminToolsParams", _Params);
+            Interface.GetMod().DataFileSystem.WriteObject("AdminTools/ChatLog", _ChatLog);
         }
 
         private void InitParams()
@@ -169,6 +190,22 @@ namespace Oxide.Plugins{
         #endregion
 
         #region Hooks
+        private void OnPlayerChat(PlayerEvent e)
+        {
+            if (e.Player == null) return;
+            if (e.ToString() == "") return;
+            string now = DateTime.Now.ToString();
+            Player player = e.Player;
+
+            Log log = new Log(now, e.ToString(), player.Name, player.Id);
+            _ChatLog.Add(log);
+
+            if (_ChatLog.Count > 2000)
+                _ChatLog.RemoveAt(0);
+
+            SaveData();
+        }
+
         private void OnCubeTakeDamage(CubeDamageEvent e) { 
 
 
@@ -178,6 +215,7 @@ namespace Oxide.Plugins{
                 if (e.Damage.Amount > 0 && e.Damage.DamageSource.IsPlayer)
                 {
                     Vector3 positionCube = positionToVector3(e.Position);
+                    e.Damage.Amount = 20000;
                     sendError(player, "Event v3: " + positionCube.x + "/" + positionCube.z + "/" + positionCube.y);
                 }
             }
