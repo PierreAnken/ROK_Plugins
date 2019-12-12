@@ -12,23 +12,31 @@ using CodeHatch.Blocks;
 using CodeHatch.Blocks.Networking.Events;
 using CodeHatch.Blocks.Inventory;
 using CodeHatch.Common;
+using CodeHatch.Core.Registration;
 using CodeHatch.Damaging;
+using CodeHatch.Engine.Behaviours;
 using CodeHatch.Engine.Core.Cache;
+using CodeHatch.Engine.Core.Commands;
+using CodeHatch.Engine.Core.Interaction.Behaviours.Networking;
+using CodeHatch.Engine.Core.Interaction.Players;
+using CodeHatch.Engine.Entities.Definitions;
 using CodeHatch.Engine.Modules.SocialSystem;
+using CodeHatch.Engine.Modules.SocialSystem.Objects;
 using CodeHatch.Engine.Networking;
+using CodeHatch.Engine.Serialization;
 using CodeHatch.ItemContainer;
 using CodeHatch.Networking.Events;
 using CodeHatch.Networking.Events.Entities;
+using CodeHatch.Networking.Events.Entities.Players;
+using CodeHatch.Networking.Events.Gaming;
 using CodeHatch.Networking.Events.Players;
+using CodeHatch.Thrones;
 using CodeHatch.Thrones.AncientThrone;
 using CodeHatch.Thrones.SocialSystem;
+using CodeHatch.Thrones.Weapons.Events;
 using CodeHatch.Thrones.Weapons.Salvage;
 using CodeHatch.UserInterface.Dialogues;
-using CodeHatch.Core.Registration;
-using CodeHatch.Engine.Core.Interaction.Behaviours.Networking;
-using CodeHatch.Engine.Core.Interaction.Players;
-using CodeHatch.Engine.Modules.SocialSystem.Objects;
-using static CodeHatch.Blocks.Networking.Events.CubeEvent;
+using CodeHatch.UserInterface.General;
 
 namespace Oxide.Plugins{
     [Info("AdminTools", "Pierre Anken", "1.0.0")]
@@ -37,7 +45,6 @@ namespace Oxide.Plugins{
 		#region Configuration Data
         private static List<Param> _Params = new List<Param>();
         private List<string> validCommands = new List<string>(new string[] { "setLang", "delBlocks"});
-        private static List<Log> _ChatLog = new List<Log>();
         #endregion
 
         #region classes
@@ -80,23 +87,6 @@ namespace Oxide.Plugins{
 
         }
 
-        public class Log {
-
-            public string dateShort;
-            public string message;
-            public string playerName;
-            public ulong playerId;
-
-            public Log(string dateShort, string message, string playerName, ulong playerId)
-            {
-                this.dateShort = dateShort;
-                this.message = message;
-                this.playerName = playerName;
-                this.playerId = playerId;
-            }
-        }
-
-        
         #endregion
 
         #region Config save/load	
@@ -110,13 +100,11 @@ namespace Oxide.Plugins{
         private static void LoadData()
         {
             _Params = Interface.GetMod().DataFileSystem.ReadObject<List<Param>>("AdminToolsParams");
-            _ChatLog = Interface.GetMod().DataFileSystem.ReadObject<List<Log>>("AdminTools/ChatLog");
         }
 
         private static void SaveData()
         {
             Interface.GetMod().DataFileSystem.WriteObject("AdminToolsParams", _Params);
-            Interface.GetMod().DataFileSystem.WriteObject("AdminTools/ChatLog", _ChatLog);
         }
 
         private void InitParams()
@@ -192,18 +180,14 @@ namespace Oxide.Plugins{
         #region Hooks
         private void OnPlayerChat(PlayerEvent e)
         {
-            if (e.Player == null) return;
-            if (e.ToString() == "") return;
-            string now = DateTime.Now.ToString();
+            #region Null Checks
+            if(e == null) return;
+            if(e.Cancelled) return;
+            if(e.Player.IsServer) return;
+            #endregion
+
             Player player = e.Player;
-
-            Log log = new Log(now, e.ToString(), player.Name, player.Id);
-            _ChatLog.Add(log);
-
-            if (_ChatLog.Count > 2000)
-                _ChatLog.RemoveAt(0);
-
-            SaveData();
+            Log(player.Id + " - " + player.Name + " - " + e.ToString(), "ChatLog");
         }
 
         private void OnCubeTakeDamage(CubeDamageEvent e) { 
@@ -317,6 +301,8 @@ namespace Oxide.Plugins{
         #endregion
 
         #region Helpers
+        private void Log(string msg, string fileName) => LogFileUtil.LogTextToFile($"..\\oxide\\logs\\AT-{fileName}_{DateTime.Now:yyyy-MM-dd}.txt", $"[{DateTime.Now:h:mm:ss tt}] {msg}\r\n");
+
         string GetMessage(string key, string userId = null) => lang.GetMessage(key, this, userId);
 
         private Vector3 getPositionV3(Player player)
