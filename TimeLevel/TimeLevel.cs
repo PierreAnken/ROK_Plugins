@@ -65,16 +65,18 @@ namespace Oxide.Plugins
             public ulong playerId;
             public int xp;
             public int currentLevel;
+            public string playerName;
 
-            public PlayerLevel(ulong playerId, int xp = 0) {
+            public PlayerLevel(ulong playerId,string playerName, int xp = 0) {
                 this.playerId = playerId;
+                this.playerName = playerName;
                 this.xp = xp;
             }
 
             override
             public string ToString()
             {
-                return string.Format("xp: {0} - lvl: {1}", xp, currentLevel);
+                return string.Format("name: {0} - xp: {1} - lvl: {2}", playerName, xp, currentLevel);
             }
         }
 
@@ -163,15 +165,10 @@ namespace Oxide.Plugins
         #region Hooks
         private void OnPlayerRespawn(PlayerRespawnEvent respawnEvent)
         {
-            #region Null Checks
-            if (respawnEvent == null) return;
-            if (respawnEvent.Cancelled) return;
-            if (respawnEvent.Player == null) return;
-            Log("Respawn from: " + respawnEvent.Player.Name);
-            if (respawnEvent.Player.IsServer) return;
-            #endregion
-
-            setPlayerFormat(respawnEvent.Player);
+            Player player = respawnEvent.Player;
+            Log("Respawn from: " + player);
+            if (player == null) return;
+            updatePlayerName(player);
         }
 
         #endregion
@@ -181,32 +178,47 @@ namespace Oxide.Plugins
         private void updateAllPlayer()
         {
             foreach (Player player in getPlayersOnline()) {
-                setPlayerFormat(player);
+                updatePlayerName(player);
+                updatePlayerLevel(player);
             }
-
         }
-        public void setPlayerFormat(Player player)
+
+        private string getPlayerFormat(PlayerLevel playerLevel)
         {
-            if (player == null) return;
-            
-            PlayerLevel playerLevel = getPlayerFromLevel(player);
-            Log("Set player format for: " + player.Name+" playerLevel: "+ playerLevel);
+            playerLevel = updatePlayerLevel(playerLevel);
+            Player player = getPlayerFromPlayerLevel(playerLevel);
+            if (player == null) return null;
+
+            Log("Set player format for: " + player.Name + " playerLevel: " + playerLevel);
             string format = "";
             if (playerLevel != null)
             {
                 format = string.Format("{0} ([00cc00]{1}[ffffff])", player.Name, playerLevel.currentLevel);
             }
-            else {
+            else
+            {
                 format = string.Format("{0} ([00cc00]0[ffffff])", player.Name);
             }
 
-            if (player.HasPermission("admin")) {
+            if (player.HasPermission("admin"))
+            {
                 format = string.Format("[4da6ff]Admin[ffffff] | {0}", format);
             }
-            player.DisplayNameFormat = format;
+
+            return format;
         }
 
-        private PlayerLevel getPlayerFromLevel(Player player){
+        private string getPlayerFormat(Player player)
+        {
+            PlayerLevel playerLevel = getPlayerFromLevelData(player);
+            return getPlayerFormat(playerLevel);
+        }
+
+        private PlayerLevel getPlayerFromLevelData(Player player){
+
+            if (player == null) return null;
+
+            //return existing player
             foreach (PlayerLevel playerLevel in _PlayerLevel)
             {
                 if (playerLevel.playerId == player.Id) {
@@ -214,24 +226,81 @@ namespace Oxide.Plugins
                     return playerLevel;
                 }
             }
-            Log("getPlayerFromLevel: " + player.Id+ " - result: not found");
+
+            // Create new players in level system
+            PlayerLevel newPlayerLevel = new PlayerLevel(player.Id, player.Name);
+            Log("getPlayerFromLevel: " + player.Id + " - result: new player created: " + newPlayerLevel);
+            _PlayerLevel.Add(newPlayerLevel);
+            SaveData();
+            return newPlayerLevel;
+        }
+
+        private PlayerLevel updatePlayerLevel(Player player)
+        {
+            PlayerLevel playerLevel = getPlayerFromLevelData(player);
+            return updatePlayerLevel(playerLevel);
+        }
+
+        private PlayerLevel updatePlayerName(PlayerLevel playerLevel)
+        {
+            Player player = getPlayerFromPlayerLevel(playerLevel);
+            return updatePlayerName(player);
+        }
+
+        private PlayerLevel updatePlayerName(Player player)
+        {
+            string format = getPlayerFormat(player);
+            player.DisplayNameFormat = format;
+            return getPlayerFromLevelData(player);
+        }
+
+        private Player getPlayerFromPlayerLevel(PlayerLevel playerLevel) { 
+            if(playerLevel == null) return null;
+            foreach (Player player in getPlayersOnline()) {
+                if (player.Id == playerLevel.playerId) {
+                    return player;
+                }
+            }
             return null;
         }
 
-        private int computeLevel(Player player) {
+        private PlayerLevel updatePlayerLevel(PlayerLevel playerLevel)
+        {
+            if (playerLevel == null) return null;
+
+            int newLevel = computeLevel(playerLevel);
+            if (playerLevel.currentLevel != newLevel) {
+                if (newLevel > 0 && newLevel > playerLevel.currentLevel)
+                {
+                    PrintToChat(playerLevel.playerName + " a atteind le niveau [ffd700]" + newLevel + "[ffffff]");
+                }
+                playerLevel.currentLevel = newLevel;
+                SaveData();
+            }
+
+            return playerLevel;
+        }
+
+        private int computeLevel(PlayerLevel playerLevel)
+        {
             int level = 0;
-            PlayerLevel playerLevel = getPlayerFromLevel(player);
-            
-            if (playerLevel != null) {
+            if (playerLevel != null)
+            {
                 int xpPlayer = playerLevel.xp;
-                while(level+1 < xpLevel.Count && xpPlayer - xpLevel[level] > 0)
+                while (level + 1 < xpLevel.Count && xpPlayer - xpLevel[level] > 0)
                 {
                     xpPlayer -= xpLevel[level];
                     level++;
                 }
             }
-            Log("Compute level for: " + player.Name + " playerLevel: " + playerLevel + " - result: "+level);
+            
+            Log("Compute level for: playerLevel: " + playerLevel + " - result: " + level);
             return level;
+        }
+
+        private int computeLevel(Player player) {
+            PlayerLevel playerLevel = getPlayerFromLevelData(player);     
+            return computeLevel(playerLevel);
         }
 
         private void setUpTimerGiveXP()
@@ -246,32 +315,10 @@ namespace Oxide.Plugins
         {
             foreach (Player player in getPlayersOnline())
             {
-                PlayerLevel playerLevel = getPlayerFromLevel(player);
-                if (playerLevel == null)
-                {
-                    _PlayerLevel.Add(new PlayerLevel(player.Id));
-                }
-                else
-                {
-                    playerLevel.xp += XPMINUTE*5;
-                    int newLevel = computeLevel(player);
-
-                    if (newLevel > playerLevel.currentLevel) {
-                        setPlayerFormat(player);
-                        //todo translate
-                        if (newLevel > 0) { 
-                            PrintToChat(player.Name+ " a atteind le niveau [ffd700]" + newLevel+ "[ffffff]");
-                        }
-                    }
-                    else if(newLevel < playerLevel.currentLevel)
-                    {
-                        setPlayerFormat(player);
-                    }
-
-                    playerLevel.currentLevel = newLevel;
-
-                    PrintToChat(player, "[ffd700]" + "+"+(XPMINUTE*5)+" xp (présence)" + "[ffffff]");
-                }
+                PlayerLevel playerLevel = getPlayerFromLevelData(player);
+                playerLevel.xp += XPMINUTE*5;
+                updatePlayerLevel(playerLevel);
+                PrintToChat(player, "[ffd700]" + "+"+(XPMINUTE*5)+" xp (présence)" + "[ffffff]");
             }
             SaveData();
         }
@@ -321,6 +368,7 @@ namespace Oxide.Plugins
         {
             return (int)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
         }
+
 
 
         private List<Player> getPlayersOnline()
