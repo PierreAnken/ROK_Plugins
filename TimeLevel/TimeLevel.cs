@@ -47,15 +47,15 @@ namespace Oxide.Plugins
     {
 
         /*=============================================
-         * Last update: 11.12.2019
+         * Last update: 13.12.2019
          * Contact: pierre.anken@gmail.com
          * https://github.com/PierreAnken/ROK_Plugins
          ==============================================*/
 
         #region Configuration Data
         private static Collection<PlayerLevel> _PlayerLevel = new Collection<PlayerLevel>();
-        private List<string> validCommands = new List<string>(new string[] { }); 
-        private List<int> xpLevel = new List<int>(new int[] {5,15,60,126,180,264,345,556,725,1166,1682,2100,2450,2800,3400,3900,4600,5346,6000,9000});
+        private List<string> validCommands = new List<string>(new string[] {"give"}); 
+        private List<int> xpLevel = new List<int>(new int[] {15,60,126,180,264,345,556,725,1166,1682,2100,2450,2800,3400,3900,4600,5346,6000,7500,9000});
         const int XPMINUTE = 1;
         #endregion
 
@@ -106,19 +106,21 @@ namespace Oxide.Plugins
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                { "InvalidCommand", "Commande invalide. Utiliser /zm pour l'aide" }
+                { "InvalidCommand", "Commande invalide. Utiliser /zm pour l'aide" },
+                { "WrongGiveAmount", "Invalide valeur d'xp." }
             }, this, "fr");
 
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                { "InvalidCommand", "Invalide command. Use /zm for help" }
+                { "InvalidCommand", "Invalide command. Use /zm for help" },
+                { "WrongGiveAmount", "Invalid xp value." }
             }, this, "en");
         }
         #endregion
 
         #region Commands
 
-        [ChatCommand("pl")]
+        [ChatCommand("tl")]
         private void commands(Player player, string cmd, string[] args)
         {
             if (args.Length == 0)
@@ -129,6 +131,10 @@ namespace Oxide.Plugins
             {
                 switch (args[0])
                 {
+                    case "give":
+                        if(checkParams(args, player, 2))
+                            giveXP(player, args[1]);
+                        break;
                      default:
                         sendError(player, GetMessage("InvalidCommand"));
                         break;
@@ -137,6 +143,31 @@ namespace Oxide.Plugins
             else
             {
                 sendError(player, GetMessage("InvalidCommand"));
+            }
+        }
+
+        private void giveXP(Player sender, string amountS, string receiver = "")
+        {
+            if (sender.HasPermission("admin"))
+            {
+                int amount = 0;
+                Int32.TryParse(amountS, out amount);
+                if (amount != 0) {
+                    if (receiver != "")
+                    {
+                        PrintToChat(sender, "receiver != null");
+                        //TODO
+                        //giveXpToPlayer(receiver, amount);
+                    }
+                    else {
+                        giveXpToPlayer(sender, amount);
+                    }
+                    //todo translate
+                }
+                else
+                {
+                    PrintToChat(sender, GetMessage("WrongGiveAmount"));
+                }
             }
         }
 
@@ -171,6 +202,10 @@ namespace Oxide.Plugins
             updatePlayerName(player);
         }
 
+        private void OnPlayerConnected(Player player)
+        {
+            updatePlayerName(player);
+        }
         #endregion
 
         #region Functions
@@ -204,7 +239,7 @@ namespace Oxide.Plugins
             {
                 format = string.Format("[4da6ff]Admin[ffffff] | {0}", format);
             }
-
+            Log("getPlayerFormat for: playerLevel: " + playerLevel + " - result: " + format);
             return format;
         }
 
@@ -251,6 +286,7 @@ namespace Oxide.Plugins
         {
             string format = getPlayerFormat(player);
             player.DisplayNameFormat = format;
+            Log("updatePlayerName: " + player.Name + " - format: " + format);
             return getPlayerFromLevelData(player);
         }
 
@@ -275,6 +311,7 @@ namespace Oxide.Plugins
                     PrintToChat(playerLevel.playerName + " a atteind le niveau [ffd700]" + newLevel + "[ffffff]");
                 }
                 playerLevel.currentLevel = newLevel;
+                updatePlayerName(playerLevel);
                 SaveData();
             }
 
@@ -287,14 +324,13 @@ namespace Oxide.Plugins
             if (playerLevel != null)
             {
                 int xpPlayer = playerLevel.xp;
-                while (level + 1 < xpLevel.Count && xpPlayer - xpLevel[level] > 0)
+                while (level < xpLevel.Count && xpPlayer - xpLevel[level] > 0)
                 {
                     xpPlayer -= xpLevel[level];
                     level++;
                 }
             }
-            
-            Log("Compute level for: playerLevel: " + playerLevel + " - result: " + level);
+            Log("computeLevel for: playerLevel: " + playerLevel + " - result: " + level);
             return level;
         }
 
@@ -313,16 +349,26 @@ namespace Oxide.Plugins
 
         private void giveXpToPlayers()
         {
+            Log("giveXpToPlayers > start");
             foreach (Player player in getPlayersOnline())
             {
-                PlayerLevel playerLevel = getPlayerFromLevelData(player);
-                playerLevel.xp += XPMINUTE*5;
-                updatePlayerLevel(playerLevel);
-                PrintToChat(player, "[ffd700]" + "+"+(XPMINUTE*5)+" xp (présence)" + "[ffffff]");
+                giveXpToPlayer(player, XPMINUTE * 5);
             }
-            SaveData();
         }
 
+        private void giveXpToPlayer(Player player, int amount)
+        {
+            PlayerLevel playerLevel = getPlayerFromLevelData(player);
+            Log("giveXpToPlayers > Give "+ amount + " xp to : " + playerLevel);
+            playerLevel.xp += amount;
+            if (playerLevel.xp < 0) {
+                playerLevel.xp = 0;
+            }
+
+            updatePlayerLevel(playerLevel);
+            PrintToChat(player, "[ffd700]" + "+" + amount + " xp (présence)" + "[ffffff]");
+            SaveData();
+        }
 
         private void sendError(Player player, string message)
         {
@@ -341,7 +387,6 @@ namespace Oxide.Plugins
             }
             return false;
         }
-
 
         #endregion
 
@@ -369,8 +414,6 @@ namespace Oxide.Plugins
             return (int)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
         }
 
-
-
         private List<Player> getPlayersOnline()
         {
             List<Player> listPlayersOnline = new List<Player>();
@@ -385,7 +428,6 @@ namespace Oxide.Plugins
         }
 
         string GetMessage(string key, string userId = null) => lang.GetMessage(key, this, userId);
-
 
         private float DistancePointAPointB(float[] pointA, float[] pointB)
         {
