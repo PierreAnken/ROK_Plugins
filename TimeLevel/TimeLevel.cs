@@ -154,13 +154,13 @@ namespace Oxide.Plugins
             List<PlayerLevel> playerLevels = new List<PlayerLevel>();
             foreach (PlayerLevel playerLevel in _PlayerLevelData) {
 
-                if (playerLevel.playerName.Contains(name))
+                if (playerLevel.playerName.ToLower().Contains(name.ToLower()))
                 {
                     playerLevels.Add(playerLevel);
                 }
 
                 // If exact match return it
-                if (playerLevel.playerName == name)
+                if (playerLevel.playerName.ToLower() == name.ToLower())
                 {
                     playerLevels.RemoveRange(0, playerLevels.Count - 1);
                     break;
@@ -226,6 +226,95 @@ namespace Oxide.Plugins
         #endregion
 
         #region Hooks
+        private void OnCubeTakeDamage(CubeDamageEvent e)
+        {
+            #region Checks
+            if (e == null) return;
+            if (e.Cancelled) return;
+            if (e.Damage == null) return;
+            if (!e.Damage.DamageSource.IsPlayer) return;
+            #endregion
+
+            try
+            {
+                Player attacker = e.Damage.DamageSource.Owner;
+                PlayerLevel attackerLevel = getPlayerFromLevelData(attacker);
+
+                if (attackerLevel.currentLevel < 6)
+                {
+                    sendError(attacker, "Pas de dégats aux cubes avant le niveau 5");
+
+                    var centralPrefabAtLocal = BlockManager.DefaultCubeGrid.GetCentralPrefabAtLocal(e.Position);
+                    if (centralPrefabAtLocal != null)
+                    {
+                        var component = centralPrefabAtLocal.GetComponent<SalvageModifier>();
+                        if (component != null) component.info.NotSalvageable = true;
+                    }
+
+                    e.Damage.Amount = 0f;
+                    e.Cancel();
+                    return;
+                }
+            }
+            catch {
+            }
+            
+        }
+
+        private void OnEntityHealthChange(EntityDamageEvent e)
+        {
+            try
+            {
+                Player attacker = e.Damage.DamageSource.Owner;
+                Player victim = e.Entity.Owner;
+                if (attacker == null || victim == null || attacker == victim) return;
+
+                PlayerLevel attackerLevel = getPlayerFromLevelData(attacker);
+                PlayerLevel victimLevel = getPlayerFromLevelData(victim);
+                
+                if (e.Entity.name.Contains("Crest") && attackerLevel.currentLevel < 6)
+                {
+                    sendError(attacker, "Pas de dégats au crest avant le niveau 5");
+                    e.Damage.Amount = 0f;
+                    return;
+                }
+                bool isVictimPlayer = e.Entity.IsPlayer;
+
+                if (attacker == null || victim == null || attacker == victim || !isVictimPlayer) return;
+                if (attackerLevel.currentLevel < 6 || victimLevel.currentLevel < 6)
+                {
+                    //TODO translate
+                    sendError(attacker, "Pas de dégats aux joueurs avant votre/leur niveau 5");
+                    e.Damage.Amount = 0f;
+                    e.Cancel();
+                    return;
+                }
+            }
+            catch {
+            }
+        }
+
+
+        private void OnThroneCapture(AncientThroneCaptureEvent captureEvent)
+        {
+            #region Checks
+            if (captureEvent == null) return;
+            if (captureEvent.Cancelled) return;
+            if (captureEvent.Player == null) return;
+            #endregion
+
+            try
+            {
+                var player = captureEvent.Player;
+                captureEvent.Cancel();
+                sendError(player,"Il n'est pour l'instant pas possible de capturer le trone.");
+            }
+            catch (Exception e)
+            {
+                Log($"Broke. \n\r{e}");
+            }
+        }
+
         private void OnPlayerRespawn(PlayerRespawnEvent respawnEvent)
         {
             Player player = respawnEvent.Player;
@@ -359,7 +448,6 @@ namespace Oxide.Plugins
                 int xpPlayer = playerLevel.xp;
                 while (level < xpLevel.Count && xpPlayer - xpLevel[level] >= 0)
                 {
-                    xpPlayer -= xpLevel[level];
                     level++;
                 }
             }
