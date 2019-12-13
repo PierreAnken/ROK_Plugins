@@ -1,3 +1,8 @@
+TimeLevel is a level system based of time. 
+Player rank up with uptime on the server.
+The name display the current level of the user.
+
 Commands
-	
+	/tl give <xpAmount> : give <xpAmount> xp to current user
+	/tl giveTo <name> <xpAmount> : give <xpAmount> xp to player name matching/containing <name>
 	

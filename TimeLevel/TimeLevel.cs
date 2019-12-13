@@ -53,8 +53,8 @@ namespace Oxide.Plugins
          ==============================================*/
 
         #region Configuration Data
-        private static Collection<PlayerLevel> _PlayerLevel = new Collection<PlayerLevel>();
-        private List<string> validCommands = new List<string>(new string[] {"give"}); 
+        private static Collection<PlayerLevel> _PlayerLevelData = new Collection<PlayerLevel>();
+        private List<string> validCommands = new List<string>(new string[] {"give","giveTo"}); 
         private List<int> xpLevel = new List<int>(new int[] {15,60,126,180,264,345,556,725,1166,1682,2100,2450,2800,3400,3900,4600,5346,6000,7500,9000});
         const int XPMINUTE = 1;
         #endregion
@@ -93,12 +93,12 @@ namespace Oxide.Plugins
 
         private void LoadData()
         {
-            _PlayerLevel = Interface.GetMod().DataFileSystem.ReadObject<Collection<PlayerLevel>>("PlayerLevel");
+            _PlayerLevelData = Interface.GetMod().DataFileSystem.ReadObject<Collection<PlayerLevel>>("PlayerLevel");
         }
 
         private void SaveData()
         {
-            Interface.GetMod().DataFileSystem.WriteObject("PlayerLevel", _PlayerLevel);
+            Interface.GetMod().DataFileSystem.WriteObject("PlayerLevel", _PlayerLevelData);
         }
 
         override
@@ -135,7 +135,11 @@ namespace Oxide.Plugins
                         if(checkParams(args, player, 2))
                             giveXP(player, args[1]);
                         break;
-                     default:
+                    case "giveTo":
+                        if (checkParams(args, player, 3))
+                            giveXP(player, args[2], args[1]);
+                        break;
+                    default:
                         sendError(player, GetMessage("InvalidCommand"));
                         break;
                 }
@@ -144,6 +148,26 @@ namespace Oxide.Plugins
             {
                 sendError(player, GetMessage("InvalidCommand"));
             }
+        }
+
+        private List<PlayerLevel> GetPlayerLevelFromName(string name) {
+            List<PlayerLevel> playerLevels = new List<PlayerLevel>();
+            foreach (PlayerLevel playerLevel in _PlayerLevelData) {
+
+                if (playerLevel.playerName.Contains(name))
+                {
+                    playerLevels.Add(playerLevel);
+                }
+
+                // If exact match return it
+                if (playerLevel.playerName == name)
+                {
+                    playerLevels.RemoveRange(0, playerLevels.Count - 1);
+                    break;
+                }
+            }
+            Log("GetPlayerLevelFromName: " + name+" - matchs: "+ playerLevels.Count);
+            return playerLevels;
         }
 
         private void giveXP(Player sender, string amountS, string receiver = "")
@@ -155,14 +179,22 @@ namespace Oxide.Plugins
                 if (amount != 0) {
                     if (receiver != "")
                     {
-                        PrintToChat(sender, "receiver != null");
-                        //TODO
-                        //giveXpToPlayer(receiver, amount);
+                        List<PlayerLevel> matches = GetPlayerLevelFromName(receiver);
+                        if(matches.Count == 1){
+                            //TODO translate
+
+                            PrintToChat(sender, amount+" xp sent to "+ matches[0].playerName);
+                            giveXpToPlayer(matches[0], amount, "give");
+                        }
+                        else
+                        {
+                            //TODO translate
+                            PrintToChat(sender, receiver+" matched " + matches.Count+" players, no xp given.");
+                        }
                     }
                     else {
-                        giveXpToPlayer(sender, amount);
+                        giveXpToPlayer(sender, amount, "give");
                     }
-                    //todo translate
                 }
                 else
                 {
@@ -254,7 +286,7 @@ namespace Oxide.Plugins
             if (player == null) return null;
 
             //return existing player
-            foreach (PlayerLevel playerLevel in _PlayerLevel)
+            foreach (PlayerLevel playerLevel in _PlayerLevelData)
             {
                 if (playerLevel.playerId == player.Id) {
                     Log("getPlayerFromLevel: " + player.Id + " - result: "+ playerLevel);
@@ -265,7 +297,7 @@ namespace Oxide.Plugins
             // Create new players in level system
             PlayerLevel newPlayerLevel = new PlayerLevel(player.Id, player.Name);
             Log("getPlayerFromLevel: " + player.Id + " - result: new player created: " + newPlayerLevel);
-            _PlayerLevel.Add(newPlayerLevel);
+            _PlayerLevelData.Add(newPlayerLevel);
             SaveData();
             return newPlayerLevel;
         }
@@ -308,7 +340,8 @@ namespace Oxide.Plugins
             if (playerLevel.currentLevel != newLevel) {
                 if (newLevel > 0 && newLevel > playerLevel.currentLevel)
                 {
-                    PrintToChat(playerLevel.playerName + " a atteind le niveau [ffd700]" + newLevel + "[ffffff]");
+                    // TODO translate
+                    PrintToChat(playerLevel.playerName + " a atteint le niveau [ffd700]" + newLevel + "[ffffff]");
                 }
                 playerLevel.currentLevel = newLevel;
                 updatePlayerName(playerLevel);
@@ -324,7 +357,7 @@ namespace Oxide.Plugins
             if (playerLevel != null)
             {
                 int xpPlayer = playerLevel.xp;
-                while (level < xpLevel.Count && xpPlayer - xpLevel[level] > 0)
+                while (level < xpLevel.Count && xpPlayer - xpLevel[level] >= 0)
                 {
                     xpPlayer -= xpLevel[level];
                     level++;
@@ -356,18 +389,27 @@ namespace Oxide.Plugins
             }
         }
 
-        private void giveXpToPlayer(Player player, int amount)
+        private void giveXpToPlayer(PlayerLevel playerLevel, int amount, string reason = "présence")
         {
-            PlayerLevel playerLevel = getPlayerFromLevelData(player);
-            Log("giveXpToPlayers > Give "+ amount + " xp to : " + playerLevel);
+            Log("giveXpToPlayers > Give " + amount + " xp to : " + playerLevel);
             playerLevel.xp += amount;
-            if (playerLevel.xp < 0) {
+            if (playerLevel.xp < 0)
+            {
                 playerLevel.xp = 0;
             }
-
+            Player player = getPlayerFromPlayerLevel(playerLevel);
+            if(player != null)
+            {
+                PrintToChat(player, "[ffd700]" + "+" + amount + " xp (présence)" + "[ffffff]");
+            }
             updatePlayerLevel(playerLevel);
-            PrintToChat(player, "[ffd700]" + "+" + amount + " xp (présence)" + "[ffffff]");
             SaveData();
+        }
+
+        private void giveXpToPlayer(Player player, int amount, string reason = "présence")
+        {
+            PlayerLevel playerLevel = getPlayerFromLevelData(player);
+            giveXpToPlayer(playerLevel, amount, reason);
         }
 
         private void sendError(Player player, string message)

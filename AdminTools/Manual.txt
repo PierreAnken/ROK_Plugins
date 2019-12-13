@@ -1,0 +1,5 @@
+AdminTools is a plugin about setting server parameters
+
+Commands
+	/at setLang <lang> : set the Oxide language to <lang>
+	

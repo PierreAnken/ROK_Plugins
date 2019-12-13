@@ -1,0 +1,5 @@
+DuelManager is a module allowing players to fight without dying.
+
+Commands
+	/defy <playerName> : send/accept a defy to/from <playerName> 
+	
