@@ -1,5 +1,11 @@
 AdminTools is a plugin about setting server parameters
 
+Feature
+ - log player tchat
+ - log inventory from player upon death
+
 Commands
 	/at setLang <lang> : set the Oxide language to <lang>
+
+
 	

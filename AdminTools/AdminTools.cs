@@ -1,7 +1,9 @@
 using UnityEngine;
+
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 using Oxide.Core;
@@ -178,6 +180,41 @@ namespace Oxide.Plugins{
         #endregion
 
         #region Hooks
+
+        private void OnEntityHealthChange(EntityDamageEvent e)
+        {
+            try
+            {
+                if (e.Damage == null) return;
+                if (e.Entity == null) return;
+                if (e.Entity.Owner == null) return;
+                if (e.Entity.Owner.Entity == null) return;
+                if (!e.Entity.Owner.Entity.IsPlayer) return;
+
+                Player attacker = null;
+                if (e.Damage.DamageSource != null)
+                    if (e.Damage.DamageSource.Owner != null)
+                        if (e.Damage.DamageSource.Owner.Entity != null)
+                                attacker = e.Damage.DamageSource.Owner;
+
+                Player victim = e.Entity.Owner;
+                if (!isDamageKilling(victim, e.Damage)) return;
+
+                Log(victim.Id + " - " + victim.Name + " - " + e.ToString() +" - "+ e.Damage.DamageTypes.ToString(), "PlayerDeath");
+                if (attacker != null) {
+                    Log("Killed by " + attacker.Entity.name, "PlayerDeath");
+                }
+
+                foreach (string inventoryObject in GetInventoryContents(victim))
+                {
+                    Log(" - " + inventoryObject, "PlayerDeath");
+                }
+            }
+            catch
+            {
+            }
+        }
+       
         private void OnPlayerChat(PlayerEvent e)
         {
             #region Null Checks
@@ -325,6 +362,59 @@ namespace Oxide.Plugins{
                 }
             }
             return new Vector3(0, 0, 0);
+        }
+
+        private bool isDamageKilling(Player victim, Damage damage)
+        {
+            bool willBeKilled = false;
+            HumanBodyBones humanBodyBones = damage.HitBoxBone;
+            if (victim.GetHealth().TorsoHealth.Bones.Contains(humanBodyBones))
+            {
+                if (victim.GetHealth().TorsoHealth.CurrentHealth - damage.Amount < 1)
+                {
+                    willBeKilled = true;
+                }
+            }
+            else if (victim.GetHealth().HeadHealth.Bones.Contains(humanBodyBones))
+            {
+                if (victim.GetHealth().HeadHealth.CurrentHealth - damage.Amount < 1)
+                {
+                    willBeKilled = true;
+                }
+            }
+            else if (victim.GetHealth().LegsHealth.Bones.Contains(humanBodyBones))
+            {
+                if (victim.GetHealth().TorsoHealth.CurrentHealth + victim.GetHealth().LegsHealth.CurrentHealth - damage.Amount < 1)
+                {
+                    willBeKilled = true;
+                }
+            }
+            else
+            {
+                float num = victim.GetHealth().HeadHealth.MaxHealth + victim.GetHealth().TorsoHealth.MaxHealth + victim.GetHealth().LegsHealth.MaxHealth;
+                float torsoHealtAfter = victim.GetHealth().HeadHealth.CurrentHealth - damage.Amount * (victim.GetHealth().HeadHealth.MaxHealth / num);
+                float headHealtAfter = victim.GetHealth().TorsoHealth.CurrentHealth - damage.Amount * (victim.GetHealth().TorsoHealth.MaxHealth / num);
+                if (torsoHealtAfter < 1 || headHealtAfter < 1)
+                {
+                    willBeKilled = true;
+                }
+            }
+            return willBeKilled;
+        }
+
+        private Collection<string> GetInventoryContents(Player player)
+        {
+            //source : https://umod.org/plugins/inventory-info
+
+            ItemCollection inventory = player.GetInventory().Contents;
+            Collection<string> inventoryContents = new Collection<string>();
+
+            foreach (InvGameItemStack stack in inventory)
+            {
+                string tempStack = string.Format("{0} - x{1}", stack.Name, stack.StackAmount); 
+                inventoryContents.Add(tempStack);
+            }
+            return inventoryContents;
         }
         #endregion
     }
