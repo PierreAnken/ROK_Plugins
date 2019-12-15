@@ -47,15 +47,17 @@ namespace Oxide.Plugins
     {
 
         /*=============================================
-         * Last update: 13.12.2019
+         * Last update: 14.12.2019
          * Contact: pierre.anken@gmail.com
          * https://github.com/PierreAnken/ROK_Plugins
          ==============================================*/
 
         #region Configuration Data
         private static Collection<PlayerLevel> _PlayerLevelData = new Collection<PlayerLevel>();
-        private List<string> validCommands = new List<string>(new string[] {"give","giveTo"}); 
-        private List<int> xpLevel = new List<int>(new int[] {15,60,126,180,264,345,556,725,1166,1682,2100,2450,2800,3400,3900,4600,5346,6000,7500,9000});
+        private List<string> validCommands = new List<string>(new string[] {"give","giveTo"});
+        const int FIRSTXPSTEP = 30;
+        const float STEPFACTOR = 0.07f;
+        const int STEPBASEINCREMENT = 45;
         const int XPMINUTE = 1;
         #endregion
 
@@ -66,6 +68,7 @@ namespace Oxide.Plugins
             public int xp;
             public int currentLevel;
             public string playerName;
+            public float[] lastPosition = null;
 
             public PlayerLevel(ulong playerId,string playerName, int xp = 0) {
                 this.playerId = playerId;
@@ -184,7 +187,7 @@ namespace Oxide.Plugins
                             //TODO translate
 
                             PrintToChat(sender, amount+" xp sent to "+ matches[0].playerName);
-                            giveXpToPlayer(matches[0], amount, "give");
+                            giveXpToPlayer(matches[0], amount, false, "give");
                         }
                         else
                         {
@@ -193,7 +196,7 @@ namespace Oxide.Plugins
                         }
                     }
                     else {
-                        giveXpToPlayer(sender, amount, "give");
+                        giveXpToPlayer(sender, amount, false, "give");
                     }
                 }
                 else
@@ -405,6 +408,8 @@ namespace Oxide.Plugins
 
         private PlayerLevel updatePlayerName(Player player)
         {
+            if (player.Id == 9999999999) return null;
+
             string format = getPlayerFormat(player);
             player.DisplayNameFormat = format;
             Log("updatePlayerName: " + player.Name + " - format: " + format);
@@ -443,13 +448,16 @@ namespace Oxide.Plugins
         private int computeLevel(PlayerLevel playerLevel)
         {
             int level = 0;
+            float nextLevelXp = FIRSTXPSTEP;
+
             if (playerLevel != null)
             {
-                int xpPlayer = playerLevel.xp;
-                while (level < xpLevel.Count && xpPlayer - xpLevel[level] >= 0)
-                {
+
+                while (playerLevel.xp >= nextLevelXp && level < 50) {
                     level++;
+                    nextLevelXp += STEPBASEINCREMENT + nextLevelXp * STEPFACTOR;
                 }
+                
             }
             Log("computeLevel for: playerLevel: " + playerLevel + " - result: " + level);
             return level;
@@ -473,31 +481,54 @@ namespace Oxide.Plugins
             Log("giveXpToPlayers > start");
             foreach (Player player in getPlayersOnline())
             {
-                giveXpToPlayer(player, XPMINUTE * 5);
+                giveXpToPlayer(player, XPMINUTE * 5, true);
             }
         }
 
-        private void giveXpToPlayer(PlayerLevel playerLevel, int amount, string reason = "présence")
+        private void giveXpToPlayer(PlayerLevel playerLevel, int amount, bool skipAFK = false, string reason = "présence")
         {
-            Log("giveXpToPlayers > Give " + amount + " xp to : " + playerLevel);
-            playerLevel.xp += amount;
-            if (playerLevel.xp < 0)
-            {
-                playerLevel.xp = 0;
-            }
+            bool skipDueToAfk = false;
             Player player = getPlayerFromPlayerLevel(playerLevel);
-            if(player != null)
+
+            if (skipAFK)
             {
-                PrintToChat(player, "[ffd700]" + "+" + amount + " xp (présence)" + "[ffffff]");
+                float[] currentPosition = getPosition(player);
+                float distance = DistancePointAPointB(currentPosition, playerLevel.lastPosition);
+                skipDueToAfk = distance != -1 && distance < 5;
             }
-            updatePlayerLevel(playerLevel);
+
+
+            if (!skipDueToAfk) {
+                Log("giveXpToPlayers > Give " + amount + " xp to : " + playerLevel);
+                playerLevel.xp += amount;
+                if (playerLevel.xp < 0)
+                {
+                    playerLevel.xp = 0;
+                }
+                if(player != null)
+                {
+                    PrintToChat(player, "[ffd700]" + "+" + amount + " xp (présence)" + "[ffffff]");
+                }
+                updatePlayerLevel(playerLevel);
+            }
+            else
+            {
+                Log("giveXpToPlayer > no xp due to afk : " + playerLevel);
+                if (player != null)
+                {
+                    PrintToChat(player, "[ff0000]" + "xp de présence désactivée car AFK" + "[ffffff]");
+                }
+            }
+
+            playerLevel.lastPosition = getPosition(player);
+
             SaveData();
         }
 
-        private void giveXpToPlayer(Player player, int amount, string reason = "présence")
+        private void giveXpToPlayer(Player player, int amount, bool skipAFK = false, string reason = "présence")
         {
             PlayerLevel playerLevel = getPlayerFromLevelData(player);
-            giveXpToPlayer(playerLevel, amount, reason);
+            giveXpToPlayer(playerLevel, amount, skipAFK, reason);
         }
 
         private void sendError(Player player, string message)
@@ -561,7 +592,7 @@ namespace Oxide.Plugins
 
         private float DistancePointAPointB(float[] pointA, float[] pointB)
         {
-            float distance = 0;
+            float distance = -1;
             if (pointA != null && pointB != null)
             {
                 if (pointA.Length == 3 && pointB.Length == 3)
